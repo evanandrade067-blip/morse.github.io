@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EvanGram P2P - ID Permanente</title>
+    <title>EvanGram P2P</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root { --tg-blue: #24A1DE; --tg-bg: #0E1621; --tg-panel: #17212B; --tg-text: #F5F5F5; }
@@ -11,28 +11,22 @@
         .app { width: 100%; max-width: 500px; display: flex; flex-direction: column; background: var(--tg-panel); border: 1px solid #232e3c; }
         .profile-section { padding: 15px; background: #1c2938; border-bottom: 2px solid #000; }
         
-        /* Estilo del ID con animación de carga */
         #my-id-display { 
-            font-size: 0.8rem; 
-            color: #ffcc00; 
-            font-family: monospace; 
-            word-break: break-all; 
-            background: #0e1621; 
-            padding: 8px; 
-            border-radius: 4px; 
-            display: block; 
-            margin-top: 5px; 
-            border: 1px solid #ffcc00;
-            min-height: 1.2em;
+            font-size: 0.8rem; color: #ffcc00; font-family: monospace; word-break: break-all; 
+            background: #0e1621; padding: 8px; border-radius: 4px; display: block; 
+            margin-top: 5px; border: 1px solid #ffcc00; min-height: 1.2em;
         }
 
         .id-loaded { color: var(--tg-blue) !important; border-color: var(--tg-blue) !important; }
 
         .chat-area { flex-grow: 1; padding: 20px; overflow-y: auto; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; display: flex; flex-direction: column; gap: 10px; }
-        .msg { max-width: 80%; padding: 10px; border-radius: 12px; font-size: 0.9em; }
-        .sent { background: #2B5278; align-self: flex-end; }
-        .received { background: #182533; align-self: flex-start; }
+        .msg { max-width: 80%; padding: 10px; border-radius: 12px; font-size: 0.9em; animation: pop 0.2s ease-out; }
+        .sent { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .received { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid var(--tg-blue); }
         .sys-msg { background: rgba(0, 255, 65, 0.1); color: #00ff41; align-self: center; font-size: 0.7rem; padding: 4px 10px; }
+
+        @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
         .input-area { padding: 15px; display: flex; gap: 10px; background: var(--tg-panel); }
         input { background: #242F3D; border: 1px solid #2b5278; color: white; padding: 8px; border-radius: 5px; flex-grow: 1; outline: none; }
         button { background: var(--tg-blue); border: none; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
@@ -46,17 +40,17 @@
             <input type="text" id="username-input" placeholder="Tu nombre...">
             <button onclick="saveName()">GUARDAR</button>
         </div>
-        <div style="font-size: 0.7rem;">ESTE ES TU ID PERMANENTE:</div>
+        <div style="font-size: 0.7rem;">TU ID PERMANENTE:</div>
         <div id="my-id-display">⚙️ PROCESANDO IDENTIDAD...</div>
     </div>
 
     <div style="padding: 10px; display: flex; gap: 5px; border-bottom: 1px solid #232e3c;">
-        <input type="text" id="peer-id-input" placeholder="ID del amigo">
+        <input type="text" id="peer-id-input" placeholder="Pegar ID de amigo">
         <button onclick="connectToFriend()">CONECTAR</button>
     </div>
 
     <div id="chat-box" class="chat-area">
-        <div class="sys-msg">Bienvenido, Evan -10. El sistema está cargando tus datos guardados.</div>
+        <div class="sys-msg">Iniciado. Cargando perfil de Evan -10...</div>
     </div>
 
     <form class="input-area" id="msg-form">
@@ -66,37 +60,55 @@
 </div>
 
 <script>
-    // --- Lógica de Guardado Permanente ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let savedID = localStorage.getItem('evanGram_ID');
     let savedName = localStorage.getItem('evanGram_Name') || "Usuario_" + Math.floor(Math.random()*999);
     
     document.getElementById('username-input').value = savedName;
 
-    // Inicializamos PeerJS (si no hay ID, lo crea nuevo)
     const peer = savedID ? new Peer(savedID) : new Peer();
 
     peer.on('open', (id) => {
-        // Guardamos el ID en localStorage si es la primera vez
-        if (!savedID) {
-            localStorage.setItem('evanGram_ID', id);
-        }
-
-        // ESPERAR 1 SEGUNDO ANTES DE MOSTRAR EL ID
+        if (!savedID) localStorage.setItem('evanGram_ID', id);
+        
         setTimeout(() => {
             const display = document.getElementById('my-id-display');
             display.innerText = id;
             display.classList.add('id-loaded');
-            appendMsg("sys-msg", "Identidad verificada correctamente.");
+            playNotifySound(true); // Pitido de inicio
         }, 1000);
     });
 
     function saveName() {
-        const name = document.getElementById('username-input').value;
-        localStorage.setItem('evanGram_Name', name);
-        alert("Nombre guardado: " + name);
+        localStorage.setItem('evanGram_Name', document.getElementById('username-input').value);
+        alert("Nombre guardado.");
     }
 
-    // --- Lógica de Chat ---
+    // SONIDO DE NOTIFICACIÓN
+    function playNotifySound(isStart) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        
+        osc.frequency.value = isStart ? 600 : 880;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+        setTimeout(() => osc.stop(), 100);
+
+        if(!isStart) { // Doble pitido para mensajes
+            setTimeout(() => {
+                const osc2 = audioCtx.createOscillator();
+                const gain2 = audioCtx.createGain();
+                osc2.connect(gain2); gain2.connect(audioCtx.destination);
+                osc2.frequency.value = 1050;
+                osc2.start();
+                gain2.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
+                setTimeout(() => osc2.stop(), 100);
+            }, 150);
+        }
+    }
+
     let conn;
     const chatBox = document.getElementById('chat-box');
 
@@ -114,8 +126,13 @@
 
     function setupConn() {
         conn.on('open', () => {
-            appendMsg("sys-msg", "Conexión en línea establecida.");
-            conn.on('data', (data) => appendMsg("received", data));
+            appendMsg("sys-msg", "¡Conexión establecida!");
+            conn.on('data', (data) => {
+                appendMsg("received", data);
+                playNotifySound(false); // Sonido de mensaje recibido
+                document.title = "🔔 ¡Nuevo Mensaje!";
+                setTimeout(() => { document.title = "EvanGram P2P"; }, 3000);
+            });
         });
     }
 
