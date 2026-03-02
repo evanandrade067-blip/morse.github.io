@@ -3,36 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EvanGram P2P - Memoria Total</title>
+    <title>EvanGram P2P - Memoria Total v2</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --tg-blue: #24A1DE; --tg-bg: #0E1621; --tg-panel: #17212B; --tg-text: #F5F5F5; }
+        :root { --tg-blue: #24A1DE; --tg-bg: #0E1621; --tg-panel: #17212B; --tg-text: #F5F5F5; --evan-gold: #ffcc00; }
         body { background: var(--tg-bg); color: var(--tg-text); font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; justify-content: center; height: 100vh; }
-        .app { width: 100%; max-width: 500px; display: flex; flex-direction: column; background: var(--tg-panel); border: 1px solid #232e3c; }
+        .app { width: 100%; max-width: 500px; display: flex; flex-direction: column; background: var(--tg-panel); border: 1px solid #232e3c; position: relative; }
+        
         .profile-section { padding: 15px; background: #1c2938; border-bottom: 2px solid #000; }
-        #my-id-display { font-size: 0.8rem; color: #ffcc00; font-family: monospace; word-break: break-all; background: #0e1621; padding: 8px; border-radius: 4px; display: block; margin-top: 5px; border: 1px solid #ffcc00; min-height: 1.2em; }
-        .id-loaded { color: var(--tg-blue) !important; border-color: var(--tg-blue) !important; }
+        #my-id-display { font-size: 0.8rem; color: var(--evan-gold); font-family: monospace; word-break: break-all; background: #0e1621; padding: 8px; border-radius: 4px; display: block; margin-top: 5px; border: 1px solid var(--evan-gold); }
+        
+        /* --- NUEVA SECCIÓN DE HISTORIAL --- */
+        #history-panel { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: var(--tg-bg); z-index: 10; display: none; flex-direction: column;
+        }
+        .history-header { padding: 15px; background: var(--tg-panel); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--tg-blue); }
+        .id-list { padding: 10px; overflow-y: auto; flex-grow: 1; }
+        .id-item { background: #1c2938; margin: 5px 0; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.8rem; display: flex; justify-content: space-between; border-left: 3px solid var(--evan-gold); }
+        .id-item button { padding: 2px 8px; font-size: 0.7rem; }
+
         .chat-area { flex-grow: 1; padding: 20px; overflow-y: auto; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; display: flex; flex-direction: column; gap: 10px; }
         .msg { max-width: 80%; padding: 10px; border-radius: 12px; font-size: 0.9em; animation: pop 0.2s ease-out; }
         .sent { background: #2B5278; align-self: flex-end; border-bottom-right-radius: 2px; }
         .received { background: #182533; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid var(--tg-blue); }
         .sys-msg { background: rgba(0, 255, 65, 0.1); color: #00ff41; align-self: center; font-size: 0.7rem; padding: 4px 10px; }
+
         .input-area { padding: 15px; display: flex; gap: 10px; background: var(--tg-panel); }
         input { background: #242F3D; border: 1px solid #2b5278; color: white; padding: 8px; border-radius: 5px; flex-grow: 1; outline: none; }
         button { background: var(--tg-blue); border: none; color: white; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        @keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .btn-history { background: #444; margin-top: 10px; width: 100%; font-size: 0.7rem; }
     </style>
 </head>
 <body>
 
 <div class="app">
+    <div id="history-panel">
+        <div class="history-header">
+            <span>📇 AGENDA DE IDs (MEMORIA)</span>
+            <button onclick="toggleHistory()" style="background:#ff0055;">CERRAR</button>
+        </div>
+        <div id="id-list-container" class="id-list">
+            </div>
+    </div>
+
     <div class="profile-section">
         <div style="display: flex; gap: 10px; margin-bottom: 10px;">
             <input type="text" id="username-input" placeholder="Tu nombre...">
             <button onclick="saveName()">GUARDAR</button>
         </div>
         <div style="font-size: 0.7rem;">TU ID PERMANENTE:</div>
-        <div id="my-id-display">⚙️ PROCESANDO IDENTIDAD...</div>
+        <div id="my-id-display">⚙️ PROCESANDO...</div>
+        <button class="btn-history" onclick="toggleHistory()">👁️ VER TODAS LAS IDs CONECTADAS</button>
     </div>
 
     <div style="padding: 10px; display: flex; gap: 5px; border-bottom: 1px solid #232e3c;">
@@ -41,7 +63,7 @@
     </div>
 
     <div id="chat-box" class="chat-area">
-        <div class="sys-msg">Cargando memoria del chat...</div>
+        <div class="sys-msg">EvanGram P2P: Memoria Lista.</div>
     </div>
 
     <form class="input-area" id="msg-form">
@@ -51,92 +73,87 @@
 </div>
 
 <script>
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // --- MEMORIA ---
-    let savedID = localStorage.getItem('evanGram_ID');
-    let savedFriendID = localStorage.getItem('evanGram_LastFriend'); // Nueva memoria de amigo
-    let savedName = localStorage.getItem('evanGram_Name') || "Usuario_" + Math.floor(Math.random()*999);
-    
-    document.getElementById('username-input').value = savedName;
-    if(savedFriendID) document.getElementById('peer-id-input').value = savedFriendID;
+    // --- LÓGICA DE MEMORIA DE IDs ---
+    let connectionsHistory = JSON.parse(localStorage.getItem('evanGram_History')) || [];
 
+    function saveToHistory(id) {
+        if (!connectionsHistory.includes(id) && id) {
+            connectionsHistory.push(id);
+            localStorage.setItem('evanGram_History', JSON.stringify(connectionsHistory));
+            renderHistory();
+        }
+    }
+
+    function renderHistory() {
+        const container = document.getElementById('id-list-container');
+        container.innerHTML = "";
+        connectionsHistory.forEach(id => {
+            const div = document.createElement('div');
+            div.className = 'id-item';
+            div.innerHTML = `<span>${id.substring(0,15)}...</span> 
+                             <button onclick="copyAndFill('${id}')">USAR</button>`;
+            container.appendChild(div);
+        });
+    }
+
+    function copyAndFill(id) {
+        document.getElementById('peer-id-input').value = id;
+        toggleHistory();
+    }
+
+    function toggleHistory() {
+        const panel = document.getElementById('history-panel');
+        panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+        renderHistory();
+    }
+
+    // --- PEERJS Y CHAT ---
+    let savedID = localStorage.getItem('evanGram_ID');
     const peer = savedID ? new Peer(savedID) : new Peer();
 
     peer.on('open', (id) => {
         if (!savedID) localStorage.setItem('evanGram_ID', id);
-        setTimeout(() => {
-            const display = document.getElementById('my-id-display');
-            display.innerText = id;
-            display.classList.add('id-loaded');
-            playNotifySound(true);
-            if(savedFriendID) appendMsg("sys-msg", "Se ha recordado el ID de tu amigo anterior.");
-        }, 1000);
+        document.getElementById('my-id-display').innerText = id;
     });
-
-    function saveName() {
-        localStorage.setItem('evanGram_Name', document.getElementById('username-input').value);
-        alert("Nombre guardado.");
-    }
-
-    function playNotifySound(isStart) {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain); gain.connect(audioCtx.destination);
-        osc.frequency.value = isStart ? 600 : 880;
-        osc.start();
-        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.1);
-        setTimeout(() => osc.stop(), 100);
-    }
 
     let conn;
-    const chatBox = document.getElementById('chat-box');
-
-    peer.on('connection', (c) => {
-        conn = c;
-        localStorage.setItem('evanGram_LastFriend', c.peer); // Guardar ID de quien nos contacta
-        setupConn();
-    });
+    function setupConn() {
+        conn.on('open', () => {
+            saveToHistory(conn.peer); // GUARDAR EN HISTORIAL AL CONECTAR
+            appendMsg("sys-msg", "Conexión establecida con: " + conn.peer);
+            conn.on('data', (data) => appendMsg("received", data));
+        });
+    }
 
     function connectToFriend() {
         const fId = document.getElementById('peer-id-input').value;
         if(!fId) return;
-        localStorage.setItem('evanGram_LastFriend', fId); // Guardar ID al conectar nosotros
         conn = peer.connect(fId);
         setupConn();
     }
 
-    function setupConn() {
-        conn.on('open', () => {
-            appendMsg("sys-msg", "Conexión establecida.");
-            conn.on('data', (data) => {
-                appendMsg("received", data);
-                playNotifySound(false);
-                document.title = "🔔 ¡Nuevo Mensaje!";
-                setTimeout(() => { document.title = "EvanGram P2P"; }, 3000);
-            });
-        });
+    peer.on('connection', (c) => {
+        conn = c;
+        saveToHistory(c.peer); // GUARDAR EN HISTORIAL SI ALGUIEN NOS CONECTA
+        setupConn();
+    });
+
+    function appendMsg(type, text) {
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        div.innerText = text;
+        document.getElementById('chat-box').appendChild(div);
     }
 
     document.getElementById('msg-form').onsubmit = (e) => {
         e.preventDefault();
         const input = document.getElementById('msg-input');
         if (conn && input.value) {
-            const name = localStorage.getItem('evanGram_Name');
-            conn.send(`${name}: ${input.value}`);
+            conn.send(input.value);
             appendMsg("sent", `Tú: ${input.value}`);
             input.value = "";
         }
     };
-
-    function appendMsg(type, text) {
-        const div = document.createElement('div');
-        div.className = `msg ${type}`;
-        div.innerText = text;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
 </script>
 </body>
 </html>
